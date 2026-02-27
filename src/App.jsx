@@ -335,7 +335,7 @@ const FanDeck = ({ total, selectedIndices, onSelect, spread, deckCards }) => {
           position:"relative", width:"100%", height:containerH,
           overflowX:"hidden", overflowY:"visible",
           transform:`scale(${pinchScale})`, transformOrigin:"50% 100%",
-          transition: pinchRef.current?.active ? "none" : "transform 0.3s ease",
+          transition: (pinchRef.current && pinchRef.current.active) ? "none" : "transform 0.3s ease",
         }}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
