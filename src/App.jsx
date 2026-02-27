@@ -217,6 +217,26 @@ const ShufflePile = ({ step }) => {
 const FanDeck = ({ total, selectedIndices, onSelect, spread, deckCards }) => {
   const [hovered, setHovered] = useState(null);
   const [previewing, setPreviewing] = useState(null); // 两步确认：预览中的牌index
+  const [pinchScale, setPinchScale] = useState(1);    // 双指缩放
+  const pinchRef = useRef({ active:false, startDist:0, startScale:1 });
+
+  const getTouchDist = (t) => {
+    const dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
+    return Math.sqrt(dx*dx + dy*dy);
+  };
+  const onTouchStart = (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      pinchRef.current = { active:true, startDist:getTouchDist(e.touches), startScale:pinchScale };
+    }
+  };
+  const onTouchMove = (e) => {
+    if (!pinchRef.current.active || e.touches.length !== 2) return;
+    e.preventDefault();
+    const next = Math.min(3, Math.max(0.7, pinchRef.current.startScale * getTouchDist(e.touches) / pinchRef.current.startDist));
+    setPinchScale(next);
+  };
+  const onTouchEnd = (e) => { if (e.touches.length < 2) pinchRef.current.active = false; };
   const FAN = 68;
   const R   = 200;
   const CARD_W = 26;
@@ -285,7 +305,15 @@ const FanDeck = ({ total, selectedIndices, onSelect, spread, deckCards }) => {
   const previewCard = previewing !== null && deckCards ? deckCards[previewing] : null;
 
   return (
-    <div style={{ position:"relative", width:"100%", height:containerH, overflowX:"hidden", overflowY:"visible" }}>
+    <div
+      style={{ position:"relative", width:"100%", height:containerH, overflowX:"hidden", overflowY:"visible",
+        transform:`scale(${pinchScale})`, transformOrigin:"50% 100%",
+        transition: pinchRef.current?.active ? "none" : "transform 0.35s ease",
+      }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
       {/* 预览弹窗 — 底部浮层，只显示序号和引导语，不透露牌面 */}
       {previewing !== null && !selectedIndices.includes(previewing) && (
         <div style={{
@@ -428,9 +456,22 @@ export default function TarotApp() {
   };
 
   const getReading = async () => {
+    // 1. 防连点锁
     if (isLoadingReading) return;
 
+    // 2. 环境变量读取（适配 Vercel）
+    // 记得在 Vercel 后台设置的 Key 必须是：VITE_GEMINI_KEY
     const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_KEY;
+    
+    if (!GEMINI_API_KEY) {
+      setReading("【系统错误】未检测到有效的 API Key。请确保在 Vercel 环境变量中配置了 VITE_GEMINI_KEY 并重新部署。");
+      return;
+    }
+
+    // 2026年正式版配置
+    const MODEL_ID = "gemini-2.5-flash"; 
+    const API_URL = `https://generativelanguage.googleapis.com/v1/models/${MODEL_ID}:generateContent?key=${GEMINI_API_KEY}`;
+
     const posNames = ["过去（根源与背景）", "现在（当下核心）", "未来（走向与可能）"];
     const cardDesc = drawnCards.map((c, i) =>
       `第${i+1}张 - ${posNames[i]}：${c.name}（${c.suit}，${c.isReversed?"逆位":"正位"}）\n关键词：${c.isReversed ? c.reversed : c.upright}`
@@ -441,6 +482,7 @@ export default function TarotApp() {
     setReading("");
 
     try {
+      // 3. 你的原版超强 Prompt（完整保留，绝不简略）
       const prompt = `你是一位睿智而温暖的塔罗牌占卜师，融合了东方玄学直觉与西方神秘学深度。
 
 你的解读风格要求：
@@ -456,7 +498,7 @@ export default function TarotApp() {
    - 【现在之牌】：深度解读（80-120字）
    - 【未来之牌】：深度解读（80-120字）
    - 【星辰寄语】：综合三牌，针对用户问题给出整合性的具体建议（100-150字）
-
+8. 【格式强制要求】：禁止使用 Markdown 的加粗符号（即不要出现 ** 符号）。标题请统一使用中文方括号【】。
 我的问题是：「${question}」
 
 命运为我揭示了以下三张牌：
@@ -465,25 +507,34 @@ ${cardDesc}
 
 请结合我的问题和这三张牌，为我进行深入的解读。`;
 
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { maxOutputTokens: 1500 }
-          })
-        }
-      );
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { 
+            maxOutputTokens: 4000, // 💡 只有调到4000才能装下你这么高质量的长文解读
+            temperature: 0.8,      // 保持灵性
+            topP: 0.95
+          }
+        })
+      });
+
       const data = await res.json();
+      
+      // 4. 报错排查逻辑
+      if (res.status === 429) throw new Error("星辰正在休息（请求太快），请60秒后再试。");
       if (data.error) throw new Error(data.error.message);
+
       if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
         setReading(data.candidates[0].content.parts[0].text);
+      } else {
+        throw new Error("未能获取到解读内容，请尝试重新抽牌。");
       }
     } catch (err) {
-      console.error("Gemini API error:", err);
-      setReading(`占卜中断：${err.message}`);
+      console.error("Gemini Error:", err);
+      // 如果 Key 报错，这里会给出 Vercel 相关的友好提示
+      setReading(`【启示中断】星辰的连结被迷雾干扰了：\n${err.message}`);
     } finally {
       setIsLoadingReading(false);
     }
