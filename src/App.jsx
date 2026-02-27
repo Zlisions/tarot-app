@@ -519,7 +519,7 @@ ${cardDesc}
       if (res.status === 429) throw new Error("星辰正在休息（请求太快），请60秒后再试。");
       if (data.error) throw new Error(data.error.message);
 
-      if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+      if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) {
         setReading(data.candidates[0].content.parts[0].text);
       } else {
         throw new Error("未能获取到解读内容，请尝试重新抽牌。");
@@ -540,7 +540,7 @@ ${cardDesc}
   };
 
   return (
-    <div style={{ minHeight:"100dvh", position:"relative", overflow:"hidden", overflowX:"hidden", maxWidth:"100vw", background:"radial-gradient(ellipse at 50% 0%,#1a0a3e 0%,#0d0620 40%,#050210 100%)" }}>
+    <div style={{ minHeight:"100vh", position:"relative", overflow:"hidden", overflowX:"hidden", maxWidth:"100vw", background:"radial-gradient(ellipse at 50% 0%,#1a0a3e 0%,#0d0620 40%,#050210 100%)" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap');
         @keyframes twinkle { 0%,100%{opacity:0.2;transform:scale(1)} 50%{opacity:1;transform:scale(1.3)} }
@@ -569,7 +569,7 @@ ${cardDesc}
         <div style={{ width:"100%", height:"100%", borderRadius:"50%", background:"radial-gradient(circle,rgba(212,175,55,0.08) 0%,transparent 70%)", filter:"blur(60px)" }} />
       </div>
 
-      <div style={{ position:"relative", zIndex:10, maxWidth:"460px", width:"100%", margin:"0 auto", padding:"20px 16px 16px", boxSizing:"border-box", ...((phase === "input" || phase === "shuffling") ? { minHeight:"100dvh", display:"flex", flexDirection:"column", justifyContent:"center" } : {}) }}>
+      <div style={{ position:"relative", zIndex:10, maxWidth:"460px", width:"100%", margin:"0 auto", padding:"20px 16px 16px", boxSizing:"border-box", ...((phase === "input" || phase === "shuffling") ? { minHeight:"100vh", display:"flex", flexDirection:"column", justifyContent:"center" } : {}) }}>
 
         {/* Header — always visible */}
         <div style={{ textAlign:"center", marginBottom:8, animation:"fadeInUp 1s ease-out forwards" }}>
