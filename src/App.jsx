@@ -214,8 +214,9 @@ const ShufflePile = ({ step }) => {
 // ═══════════════════════════════════════════════════════════
 //  FAN DECK  —  upward arc, transformOrigin bottom-center
 // ═══════════════════════════════════════════════════════════
-const FanDeck = ({ total, selectedIndices, onSelect, spread }) => {
+const FanDeck = ({ total, selectedIndices, onSelect, spread, deckCards }) => {
   const [hovered, setHovered] = useState(null);
+  const [previewing, setPreviewing] = useState(null); // 两步确认：预览中的牌index
   const FAN = 68;
   const R   = 200;
   const CARD_W = 26;
@@ -226,25 +227,24 @@ const FanDeck = ({ total, selectedIndices, onSelect, spread }) => {
     const deg = -FAN / 2 + t * FAN;
     const picked  = selectedIndices.includes(i);
     const isHov   = hovered === i && !picked;
-    // Encode lift as a reduction of the pivot radius.
-    // The card moves closer to its pivot point = visually higher.
-    // Crucially, the hot-zone moves with the card because transformOrigin carries the offset.
-    const lift = picked ? 70 : isHov ? 38 : 0;
+    const isPrev  = previewing === i && !picked;
+    const lift = picked ? 70 : (isHov || isPrev) ? 38 : 0;
     return { deg, lift };
   };
 
   const getStyle = (i) => {
     const picked  = selectedIndices.includes(i);
     const isHov   = hovered === i && !picked;
+    const isPrev  = previewing === i && !picked;
     const maxed   = selectedIndices.length >= 3 && !picked;
     const { deg, lift } = getTransform(i);
 
     let scale = 1, zIndex = i + 1, glow = "none", brightness = 1;
-    if (picked)     { scale = 1.12; zIndex = total + 30; glow = "0 0 28px rgba(212,175,55,1), 0 0 55px rgba(212,175,55,0.5)"; }
-    else if (isHov) { scale = 1.09; zIndex = total + 15; glow = "0 0 24px rgba(147,51,234,0.9), 0 0 44px rgba(212,175,55,0.35)"; }
-    else if (maxed) { brightness = 0.38; }
+    if (picked)              { scale = 1.12; zIndex = total + 30; glow = "0 0 28px rgba(212,175,55,1), 0 0 55px rgba(212,175,55,0.5)"; }
+    else if (isPrev)         { scale = 1.15; zIndex = total + 20; glow = "0 0 32px rgba(147,51,234,1), 0 0 55px rgba(212,175,55,0.6)"; }
+    else if (isHov)          { scale = 1.09; zIndex = total + 15; glow = "0 0 24px rgba(147,51,234,0.9), 0 0 44px rgba(212,175,55,0.35)"; }
+    else if (maxed)          { brightness = 0.38; }
 
-    // No translateY — lift is baked into the pivot so hot-zone == visual pos
     const pivotDist = R - lift;
     return {
       position: "absolute",
@@ -270,20 +270,69 @@ const FanDeck = ({ total, selectedIndices, onSelect, spread }) => {
 
   const containerH = 190;
 
+  const handleCardClick = (i) => {
+    if (selectedIndices.includes(i) || selectedIndices.length >= 3) return;
+    if (previewing === i) {
+      // 第二次点击 = 确认选中
+      onSelect(i);
+      setPreviewing(null);
+    } else {
+      // 第一次点击 = 预览
+      setPreviewing(i);
+    }
+  };
+
+  const previewCard = previewing !== null && deckCards ? deckCards[previewing] : null;
+
   return (
     <div style={{ position:"relative", width:"100%", height:containerH, overflowX:"hidden", overflowY:"visible" }}>
+      {/* 预览弹窗 — 底部浮层，只显示序号和引导语，不透露牌面 */}
+      {previewing !== null && !selectedIndices.includes(previewing) && (
+        <div style={{
+          position:"fixed", bottom:0, left:0, right:0, zIndex:100,
+          background:"linear-gradient(to top, rgba(13,6,32,0.98) 0%, rgba(13,6,32,0.92) 100%)",
+          borderTop:"1px solid rgba(212,175,55,0.3)",
+          padding:"20px 24px 36px",
+          textAlign:"center",
+          backdropFilter:"blur(12px)",
+          animation:"fadeInUp 0.2s ease-out",
+        }}>
+          <div style={{ color:"rgba(212,175,55,0.5)", fontSize:"0.7rem", fontFamily:"'Cinzel',serif", letterSpacing:"0.2em", marginBottom:8 }}>
+            第 {selectedIndices.length + 1} 张命运之牌
+          </div>
+          <div style={{ color:"#d4af37", fontFamily:"'Crimson Pro',serif", fontSize:"1.05rem", marginBottom:20, fontStyle:"italic" }}>
+            你感受到它的召唤了吗？
+          </div>
+          <div style={{ display:"flex", justifyContent:"center", gap:12 }}>
+            <button onClick={() => { onSelect(previewing); setPreviewing(null); }} style={{
+              padding:"12px 28px", borderRadius:9999,
+              background:"linear-gradient(135deg,rgba(212,175,55,0.25),rgba(147,51,234,0.25))",
+              border:"1px solid rgba(212,175,55,0.7)", color:"#d4af37",
+              fontFamily:"'Cinzel',serif", fontSize:"0.78rem", cursor:"pointer",
+              boxShadow:"0 0 18px rgba(212,175,55,0.25)",
+            }}>✦ 命运已定</button>
+            <button onClick={() => setPreviewing(null)} style={{
+              padding:"12px 24px", borderRadius:9999,
+              background:"transparent",
+              border:"1px solid rgba(212,175,55,0.2)", color:"rgba(212,175,55,0.45)",
+              fontFamily:"'Cinzel',serif", fontSize:"0.75rem", cursor:"pointer",
+            }}>再感受一下</button>
+          </div>
+        </div>
+      )}
+
       {Array.from({ length: total }, (_, i) => {
         const picked = selectedIndices.includes(i);
-        const { deg } = getTransform(i); // for badge counter-rotation
+        const { deg } = getTransform(i);
         return (
           <div
             key={i}
             style={getStyle(i)}
-            onClick={() => { if (!picked && selectedIndices.length < 3) onSelect(i); }}
+            onClick={() => handleCardClick(i)}
             onMouseEnter={() => { if (!picked) setHovered(i); }}
             onMouseLeave={() => setHovered(null)}
           >
-            <CardFaceDown w={CARD_W} h={CARD_H} glowing={picked} />
+            <CardFaceDown w={CARD_W} h={CARD_H} glowing={picked || previewing === i} />
             {picked && (
               <>
                 <div style={{
@@ -293,7 +342,6 @@ const FanDeck = ({ total, selectedIndices, onSelect, spread }) => {
                   pointerEvents:"none",
                   animation:"selectedPulse 2s ease-in-out infinite",
                 }} />
-                {/* order badge — counter-rotated to stay upright */}
                 <div style={{
                   position:"absolute", top:-11, left:"50%",
                   transform:`translateX(-50%) rotate(${-deg}deg)`,
@@ -380,14 +428,9 @@ export default function TarotApp() {
   };
 
   const getReading = async () => {
-    // 【保险 1】防止重复触发：如果正在加载，直接拦截（解决 429 报错核心）
     if (isLoadingReading) return;
 
-    // 2026年稳定版端点与模型配置
-    const GEMINI_API_KEY = "AIzaSyCBG_sT77N6Bjz1vQUqzawUuVj60Qk_igQ";
-    const MODEL_ID = "gemini-2.5-flash"; 
-    const API_URL = `https://generativelanguage.googleapis.com/v1/models/${MODEL_ID}:generateContent?key=${GEMINI_API_KEY}`;
-
+    const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_KEY;
     const posNames = ["过去（根源与背景）", "现在（当下核心）", "未来（走向与可能）"];
     const cardDesc = drawnCards.map((c, i) =>
       `第${i+1}张 - ${posNames[i]}：${c.name}（${c.suit}，${c.isReversed?"逆位":"正位"}）\n关键词：${c.isReversed ? c.reversed : c.upright}`
@@ -398,65 +441,53 @@ export default function TarotApp() {
     setReading("");
 
     try {
-      const prompt = `你是一位睿智而温暖的塔罗牌占卜师，融合了东方玄学直觉与西方神秘学深度。你的解读风格要求：
+      const prompt = `你是一位睿智而温暖的塔罗牌占卜师，融合了东方玄学直觉与西方神秘学深度。
+
+你的解读风格要求：
 1. 语言保持神秘而诗意，但必须结合用户的具体问题，说"人话"，让人听得懂、有共鸣
 2. 解读要深入具体，不能只罗列牌义关键词，要分析这张牌在这个问题背景下"真正在说什么"
 3. 三张牌要形成叙事连贯的故事线：过去的根源如何影响了现在，现在的状态又指向怎样的未来
 4. 每张牌的解读至少80字，整体解读不少于400字
-5. 结合用户问题给出具体的、可执行的建议
-6. 解读结构：
-   - 开篇：简短点出三牌整体气场
-   - 【过去之牌】：深度解读
-   - 【现在之牌】：深度解读
-   - 【未来之牌】：深度解读
-   - 【星辰寄语】：综合建议
-      
-      我的问题是：「${question}」
-      命运揭示的牌阵：
-      ${cardDesc}
+5. 结合用户问题给出具体的、可执行的建议，而不是模糊的励志话
+6. 如果牌面显示有挑战或困难，要坦诚说出来，但要给出转化的方向
+7. 解读结构：
+   - 开篇：简短点出三牌整体气场（30字内）
+   - 【过去之牌】：深度解读（80-120字）
+   - 【现在之牌】：深度解读（80-120字）
+   - 【未来之牌】：深度解读（80-120字）
+   - 【星辰寄语】：综合三牌，针对用户问题给出整合性的具体建议（100-150字）
 
-      请基于以上内容，为我进行不少于400汉字的深度解读。`;
+我的问题是：「${question}」
 
-      const res = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { 
-            // 💡 关键修改：提高最大 token 数，防止内容被截断
-            maxOutputTokens: 4000, 
-            temperature: 0.75,
-            topP: 0.95,
-            topK: 40
-          }
-        })
-      });
+命运为我揭示了以下三张牌：
 
+${cardDesc}
+
+请结合我的问题和这三张牌，为我进行深入的解读。`;
+
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { maxOutputTokens: 1500 }
+          })
+        }
+      );
       const data = await res.json();
-
-      // 错误排查
-      if (res.status === 429) {
-        throw new Error("免费额度请求太频繁啦，请休息 60 秒后再试。");
-      }
-      if (data.error) {
-        throw new Error(data.error.message || "星辰通讯异常");
-      }
-
+      if (data.error) throw new Error(data.error.message);
       if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
         setReading(data.candidates[0].content.parts[0].text);
-      } else {
-        throw new Error("模型未能生成完整解读，请尝试重新提问。");
       }
     } catch (err) {
       console.error("Gemini API error:", err);
-      setReading(`【启示中断】星辰的连结被迷雾干扰了：\n${err.message}`);
+      setReading(`占卜中断：${err.message}`);
     } finally {
       setIsLoadingReading(false);
     }
   };
-
-     
-  
 
   const reset = () => {
     setPhase("input"); setQuestion(""); setDrawnCards([]);
@@ -465,7 +496,7 @@ export default function TarotApp() {
   };
 
   return (
-    <div style={{ minHeight:"100vh", position:"relative", overflow:"hidden", background:"radial-gradient(ellipse at 50% 0%,#1a0a3e 0%,#0d0620 40%,#050210 100%)" }}>
+    <div style={{ minHeight:"100dvh", position:"relative", overflow:"hidden", background:"radial-gradient(ellipse at 50% 0%,#1a0a3e 0%,#0d0620 40%,#050210 100%)" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap');
         @keyframes twinkle { 0%,100%{opacity:0.2;transform:scale(1)} 50%{opacity:1;transform:scale(1.3)} }
@@ -479,7 +510,7 @@ export default function TarotApp() {
         .mystic-input:focus { border-color:rgba(212,175,55,0.7); box-shadow:0 0 18px rgba(212,175,55,0.2),inset 0 0 8px rgba(212,175,55,0.05); }
         .mystic-input::placeholder { color:rgba(212,175,55,0.3); }
         * { box-sizing:border-box; }
-        body { margin:0; padding:0; }
+        html,body { margin:0; padding:0; overflow-x:hidden; max-width:100vw; }
         textarea, input { -webkit-appearance:none; }
         .reading-text { font-family:'Crimson Pro',serif; font-size:1.05rem; line-height:2.1; color:rgba(220,200,255,0.88); white-space:pre-wrap; }
         ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:rgba(0,0,0,0.3)} ::-webkit-scrollbar-thumb{background:rgba(212,175,55,0.3);border-radius:2px}
@@ -494,7 +525,7 @@ export default function TarotApp() {
         <div style={{ width:"100%", height:"100%", borderRadius:"50%", background:"radial-gradient(circle,rgba(212,175,55,0.08) 0%,transparent 70%)", filter:"blur(60px)" }} />
       </div>
 
-      <div style={{ position:"relative", zIndex:10, maxWidth:"460px", width:"100%", margin:"0 auto", padding:"20px 16px 16px", boxSizing:"border-box" }}>
+      <div style={{ position:"relative", zIndex:10, maxWidth:"460px", width:"100%", margin:"0 auto", padding:"20px 16px 16px", boxSizing:"border-box", ...((phase === "input" || phase === "shuffling") ? { minHeight:"100dvh", display:"flex", flexDirection:"column", justifyContent:"center" } : {}) }}>
 
         {/* Header — always visible */}
         <div style={{ textAlign:"center", marginBottom:8, animation:"fadeInUp 1s ease-out forwards" }}>
@@ -526,6 +557,7 @@ export default function TarotApp() {
               <textarea className="mystic-input" style={{ width:"100%", borderRadius:12, padding:13, resize:"none", boxSizing:"border-box" }} rows={4}
                 placeholder="我想了解关于感情/事业/人生的..."
                 value={question} onChange={e => setQuestion(e.target.value)}
+                onFocus={e => setTimeout(() => e.target.scrollIntoView({ behavior:"smooth", block:"center" }), 300)}
               />
               {error && <p style={{ textAlign:"center", marginTop:10, fontSize:"0.84rem", color:"rgba(236,72,153,0.8)", fontFamily:"'Crimson Pro',serif" }}>✦ {error} ✦</p>}
             </div>
@@ -580,13 +612,14 @@ export default function TarotApp() {
               </p>
             </div>
             {/* 牌组：fixed 固定在屏幕60%位置 */}
-            <div style={{ position:"fixed", top:"55%", left:0, right:0, zIndex:30, pointerEvents:"none" }}>
+            <div style={{ position:"fixed", top:"50%", left:0, right:0, zIndex:30, pointerEvents:"none", transform:"translateY(-10%)" }}>
               <div style={{ pointerEvents:"auto" }}>
                 <FanDeck
                   total={deckCards.length}
                   selectedIndices={selectedIdx}
                   onSelect={handlePickCard}
                   spread={spread}
+                  deckCards={deckCards}
                 />
               </div>
             </div>
