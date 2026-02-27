@@ -212,14 +212,20 @@ const ShufflePile = ({ step }) => {
 };
 
 // ═══════════════════════════════════════════════════════════
-//  FAN DECK  —  upward arc, transformOrigin bottom-center
+//  FAN DECK  —  upward arc + pinch zoom + two-step confirm
 // ═══════════════════════════════════════════════════════════
 const FanDeck = ({ total, selectedIndices, onSelect, spread, deckCards }) => {
-  const [hovered, setHovered] = useState(null);
-  const [previewing, setPreviewing] = useState(null); // 两步确认：预览中的牌index
-  const [pinchScale, setPinchScale] = useState(1);    // 双指缩放
+  const [hovered, setHovered]       = useState(null);
+  const [previewing, setPreviewing] = useState(null);
+  const [pinchScale, setPinchScale] = useState(1);
   const pinchRef = useRef({ active:false, startDist:0, startScale:1 });
 
+  const FAN = 68;
+  const R   = 200;
+  const CARD_W = 26;
+  const CARD_H = 42;
+
+  // ── 双指缩放 ────────────────────────────────────────────
   const getTouchDist = (t) => {
     const dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
     return Math.sqrt(dx*dx + dy*dy);
@@ -237,11 +243,8 @@ const FanDeck = ({ total, selectedIndices, onSelect, spread, deckCards }) => {
     setPinchScale(next);
   };
   const onTouchEnd = (e) => { if (e.touches.length < 2) pinchRef.current.active = false; };
-  const FAN = 68;
-  const R   = 200;
-  const CARD_W = 26;
-  const CARD_H = 42;
 
+  // ── 牌位置计算 ──────────────────────────────────────────
   const getTransform = (i) => {
     const t   = total <= 1 ? 0.5 : i / (total - 1);
     const deg = -FAN / 2 + t * FAN;
@@ -260,31 +263,26 @@ const FanDeck = ({ total, selectedIndices, onSelect, spread, deckCards }) => {
     const { deg, lift } = getTransform(i);
 
     let scale = 1, zIndex = i + 1, glow = "none", brightness = 1;
-    if (picked)              { scale = 1.12; zIndex = total + 30; glow = "0 0 28px rgba(212,175,55,1), 0 0 55px rgba(212,175,55,0.5)"; }
-    else if (isPrev)         { scale = 1.15; zIndex = total + 20; glow = "0 0 32px rgba(147,51,234,1), 0 0 55px rgba(212,175,55,0.6)"; }
-    else if (isHov)          { scale = 1.09; zIndex = total + 15; glow = "0 0 24px rgba(147,51,234,0.9), 0 0 44px rgba(212,175,55,0.35)"; }
-    else if (maxed)          { brightness = 0.38; }
+    if (picked)      { scale = 1.12; zIndex = total + 30; glow = "0 0 28px rgba(212,175,55,1), 0 0 55px rgba(212,175,55,0.5)"; }
+    else if (isPrev) { scale = 1.15; zIndex = total + 20; glow = "0 0 32px rgba(147,51,234,1), 0 0 55px rgba(212,175,55,0.6)"; }
+    else if (isHov)  { scale = 1.09; zIndex = total + 15; glow = "0 0 24px rgba(147,51,234,0.9), 0 0 44px rgba(212,175,55,0.35)"; }
+    else if (maxed)  { brightness = 0.38; }
 
     const pivotDist = R - lift;
     return {
-      position: "absolute",
-      left: "50%",
-      bottom: 0,
-      width: CARD_W,
-      height: CARD_H,
-      marginLeft: -CARD_W / 2,
-      transform: `rotate(${deg}deg) scale(${scale})`,
-      transformOrigin: `50% calc(100% + ${pivotDist}px)`,
+      position:"absolute", left:"50%", bottom:0,
+      width:CARD_W, height:CARD_H, marginLeft:-CARD_W/2,
+      transform:`rotate(${deg}deg) scale(${scale})`,
+      transformOrigin:`50% calc(100% + ${pivotDist}px)`,
       zIndex,
       cursor: picked || maxed ? "default" : "pointer",
       transition: spread
         ? `transform 0.6s cubic-bezier(0.34,1.1,0.64,1) ${i * 10}ms, filter 0.22s, opacity 0.5s ${i * 10}ms`
         : "transform 0.18s ease, filter 0.18s",
-      filter: `brightness(${brightness})`,
-      boxShadow: glow,
-      borderRadius: 9,
+      filter:`brightness(${brightness})`,
+      boxShadow:glow, borderRadius:9,
       opacity: spread ? 1 : 0,
-      userSelect: "none",
+      userSelect:"none",
     };
   };
 
@@ -292,37 +290,20 @@ const FanDeck = ({ total, selectedIndices, onSelect, spread, deckCards }) => {
 
   const handleCardClick = (i) => {
     if (selectedIndices.includes(i) || selectedIndices.length >= 3) return;
-    if (previewing === i) {
-      // 第二次点击 = 确认选中
-      onSelect(i);
-      setPreviewing(null);
-    } else {
-      // 第一次点击 = 预览
-      setPreviewing(i);
-    }
+    if (previewing === i) { onSelect(i); setPreviewing(null); }
+    else setPreviewing(i);
   };
 
-  const previewCard = previewing !== null && deckCards ? deckCards[previewing] : null;
-
   return (
-    <div
-      style={{ position:"relative", width:"100%", height:containerH, overflowX:"hidden", overflowY:"visible",
-        transform:`scale(${pinchScale})`, transformOrigin:"50% 100%",
-        transition: pinchRef.current?.active ? "none" : "transform 0.35s ease",
-      }}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
-    >
-      {/* 预览弹窗 — 底部浮层，只显示序号和引导语，不透露牌面 */}
+    <>
+      {/* ── 确认弹窗：渲染在FanDeck外层，不受scale影响，zIndex最高 */}
       {previewing !== null && !selectedIndices.includes(previewing) && (
         <div style={{
-          position:"fixed", bottom:0, left:0, right:0, zIndex:100,
-          background:"linear-gradient(to top, rgba(13,6,32,0.98) 0%, rgba(13,6,32,0.92) 100%)",
+          position:"fixed", bottom:0, left:0, right:0, zIndex:9999,
+          background:"linear-gradient(to top, rgba(13,6,32,0.99) 0%, rgba(13,6,32,0.95) 100%)",
           borderTop:"1px solid rgba(212,175,55,0.3)",
-          padding:"20px 24px 36px",
-          textAlign:"center",
-          backdropFilter:"blur(12px)",
+          padding:"20px 24px 40px", textAlign:"center",
+          backdropFilter:"blur(16px)",
           animation:"fadeInUp 0.2s ease-out",
         }}>
           <div style={{ color:"rgba(212,175,55,0.5)", fontSize:"0.7rem", fontFamily:"'Cinzel',serif", letterSpacing:"0.2em", marginBottom:8 }}>
@@ -340,8 +321,7 @@ const FanDeck = ({ total, selectedIndices, onSelect, spread, deckCards }) => {
               boxShadow:"0 0 18px rgba(212,175,55,0.25)",
             }}>✦ 命运已定</button>
             <button onClick={() => setPreviewing(null)} style={{
-              padding:"12px 24px", borderRadius:9999,
-              background:"transparent",
+              padding:"12px 24px", borderRadius:9999, background:"transparent",
               border:"1px solid rgba(212,175,55,0.2)", color:"rgba(212,175,55,0.45)",
               fontFamily:"'Cinzel',serif", fontSize:"0.75rem", cursor:"pointer",
             }}>再感受一下</button>
@@ -349,44 +329,57 @@ const FanDeck = ({ total, selectedIndices, onSelect, spread, deckCards }) => {
         </div>
       )}
 
-      {Array.from({ length: total }, (_, i) => {
-        const picked = selectedIndices.includes(i);
-        const { deg } = getTransform(i);
-        return (
-          <div
-            key={i}
-            style={getStyle(i)}
-            onClick={() => handleCardClick(i)}
-            onMouseEnter={() => { if (!picked) setHovered(i); }}
-            onMouseLeave={() => setHovered(null)}
-          >
-            <CardFaceDown w={CARD_W} h={CARD_H} glowing={picked || previewing === i} />
-            {picked && (
-              <>
-                <div style={{
-                  position:"absolute", inset:0, borderRadius:9,
-                  border:"2px solid rgba(212,175,55,0.95)",
-                  boxShadow:"inset 0 0 14px rgba(212,175,55,0.25)",
-                  pointerEvents:"none",
-                  animation:"selectedPulse 2s ease-in-out infinite",
-                }} />
-                <div style={{
-                  position:"absolute", top:-11, left:"50%",
-                  transform:`translateX(-50%) rotate(${-deg}deg)`,
-                  width:18, height:18, borderRadius:"50%",
-                  background:"linear-gradient(135deg,#d4af37,#f0d060)",
-                  display:"flex", alignItems:"center", justifyContent:"center",
-                  fontSize:"0.55rem", fontWeight:"bold", color:"#1a0a2e",
-                  boxShadow:"0 0 7px rgba(212,175,55,0.8)", pointerEvents:"none",
-                }}>
-                  {selectedIndices.indexOf(i) + 1}
-                </div>
-              </>
-            )}
-          </div>
-        );
-      })}
-    </div>
+      {/* ── 牌组：scale只作用于这个div */}
+      <div
+        style={{
+          position:"relative", width:"100%", height:containerH,
+          overflowX:"hidden", overflowY:"visible",
+          transform:`scale(${pinchScale})`, transformOrigin:"50% 100%",
+          transition: pinchRef.current?.active ? "none" : "transform 0.3s ease",
+        }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        {Array.from({ length: total }, (_, i) => {
+          const picked = selectedIndices.includes(i);
+          const { deg } = getTransform(i);
+          return (
+            <div
+              key={i}
+              style={getStyle(i)}
+              onClick={() => handleCardClick(i)}
+              onMouseEnter={() => { if (!picked) setHovered(i); }}
+              onMouseLeave={() => setHovered(null)}
+            >
+              <CardFaceDown w={CARD_W} h={CARD_H} glowing={picked || previewing === i} />
+              {picked && (
+                <>
+                  <div style={{
+                    position:"absolute", inset:0, borderRadius:9,
+                    border:"2px solid rgba(212,175,55,0.95)",
+                    boxShadow:"inset 0 0 14px rgba(212,175,55,0.25)",
+                    pointerEvents:"none",
+                    animation:"selectedPulse 2s ease-in-out infinite",
+                  }} />
+                  <div style={{
+                    position:"absolute", top:-11, left:"50%",
+                    transform:`translateX(-50%) rotate(${-deg}deg)`,
+                    width:18, height:18, borderRadius:"50%",
+                    background:"linear-gradient(135deg,#d4af37,#f0d060)",
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    fontSize:"0.55rem", fontWeight:"bold", color:"#1a0a2e",
+                    boxShadow:"0 0 7px rgba(212,175,55,0.8)", pointerEvents:"none",
+                  }}>
+                    {selectedIndices.indexOf(i) + 1}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 };
 
@@ -547,7 +540,7 @@ ${cardDesc}
   };
 
   return (
-    <div style={{ minHeight:"100dvh", position:"relative", overflow:"hidden", background:"radial-gradient(ellipse at 50% 0%,#1a0a3e 0%,#0d0620 40%,#050210 100%)" }}>
+    <div style={{ minHeight:"100dvh", position:"relative", overflow:"hidden", overflowX:"hidden", maxWidth:"100vw", background:"radial-gradient(ellipse at 50% 0%,#1a0a3e 0%,#0d0620 40%,#050210 100%)" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap');
         @keyframes twinkle { 0%,100%{opacity:0.2;transform:scale(1)} 50%{opacity:1;transform:scale(1.3)} }
