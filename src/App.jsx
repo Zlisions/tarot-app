@@ -533,10 +533,10 @@ ${cardDesc}
         .mystic-input:focus { border-color:rgba(212,175,55,0.7); box-shadow:0 0 18px rgba(212,175,55,0.2),inset 0 0 8px rgba(212,175,55,0.05); }
         .mystic-input::placeholder { color:rgba(212,175,55,0.3); }
         * { box-sizing:border-box; }
-        html,body { margin:0; padding:0; overflow-x:hidden; max-width:100vw; }
+        html { margin:0; padding:0; overflow:hidden; width:100%; height:100%; } body { margin:0; padding:0; overflow-x:hidden; overflow-y:auto; width:100%; position:relative; }
         textarea, input { -webkit-appearance:none; }
         .reading-text { font-family:'Crimson Pro',serif; font-size:1.05rem; line-height:2.1; color:rgba(220,200,255,0.88); white-space:pre-wrap; }
-        ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:rgba(0,0,0,0.3)} ::-webkit-scrollbar-thumb{background:rgba(212,175,55,0.3);border-radius:2px}
+        ::-webkit-scrollbar{display:none} * { -ms-overflow-style:none; scrollbar-width:none; }
       `}</style>
 
       <Stars />
@@ -544,11 +544,11 @@ ${cardDesc}
       <div style={{ position:"fixed", pointerEvents:"none", top:"8%", left:"2%", width:320, height:320 }}>
         <div style={{ width:"100%", height:"100%", borderRadius:"50%", background:"radial-gradient(circle,rgba(147,51,234,0.13) 0%,transparent 70%)", filter:"blur(48px)" }} />
       </div>
-      <div style={{ position:"fixed", pointerEvents:"none", bottom:"8%", right:"2%", width:420, height:420 }}>
+      <div style={{ position:"fixed", pointerEvents:"none", bottom:"8%", right:0, width:280, height:280, overflow:"hidden" }}>
         <div style={{ width:"100%", height:"100%", borderRadius:"50%", background:"radial-gradient(circle,rgba(212,175,55,0.08) 0%,transparent 70%)", filter:"blur(60px)" }} />
       </div>
 
-      <div style={{ position:"relative", zIndex:10, maxWidth:"460px", width:"100%", margin:"0 auto", padding:"20px 16px 16px", boxSizing:"border-box", ...((phase === "input" || phase === "shuffling") ? { minHeight:"100dvh", display:"flex", flexDirection:"column", justifyContent:"center" } : {}) }}>
+      <div style={{ position:"relative", zIndex:10, maxWidth:"460px", width:"100%", margin:"0 auto", padding:"20px 16px 16px", boxSizing:"border-box", ...((phase === "input" || phase === "shuffling") ? { minHeight:"100dvh", display:"flex", flexDirection:"column", justifyContent:"center" } : phase === "picking" ? { minHeight:"100dvh", display:"flex", flexDirection:"column", justifyContent:"flex-start", paddingTop:"8vh" } : {}) }}>
 
         {/* Header — always visible */}
         <div style={{ textAlign:"center", marginBottom:8, animation:"fadeInUp 1s ease-out forwards" }}>
