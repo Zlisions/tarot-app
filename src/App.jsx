@@ -433,14 +433,13 @@ export default function TarotApp() {
 
     // 2. 环境变量读取（适配 Vercel）
     // 记得在 Vercel 后台设置的 Key 必须是：VITE_GEMINI_KEY
-    const GEMINI_API_KEY = import.meta.env?.VITE_GEMINI_KEY || "";
+    const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_KEY;
     
     if (!GEMINI_API_KEY) {
-    setReading("【系统错误】未检测到有效秘钥，请检查 Vercel 环境变量配置。");
-    setPhase("reading");
-    return;
-  }
-  
+      setReading("【系统错误】未检测到有效的 API Key。请确保在 Vercel 环境变量中配置了 VITE_GEMINI_KEY 并重新部署。");
+      return;
+    }
+
     // 2026年正式版配置
     const MODEL_ID = "gemini-2.5-flash"; 
     const API_URL = `https://generativelanguage.googleapis.com/v1/models/${MODEL_ID}:generateContent?key=${GEMINI_API_KEY}`;
