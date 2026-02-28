@@ -216,31 +216,7 @@ const ShufflePile = ({ step }) => {
 // ═══════════════════════════════════════════════════════════
 const FanDeck = ({ total, selectedIndices, onSelect, spread, deckCards }) => {
   const [hovered, setHovered] = useState(null);
-  const [previewing, setPreviewing] = useState(null);
-  const [pinchScale, setPinchScale] = useState(1);
-  const pinchRef = useRef({ active:false, startDist:0, startScale:1 });
-
-  function getTouchDist(t) {
-    var dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
-    return Math.sqrt(dx*dx + dy*dy);
-  }
-  function onTouchStart(e) {
-    if (e.touches.length === 2) {
-      e.preventDefault();
-      pinchRef.current = { active:true, startDist:getTouchDist(e.touches), startScale:pinchScale };
-    }
-  }
-  function onTouchMove(e) {
-    if (!pinchRef.current.active || e.touches.length !== 2) return;
-    e.preventDefault();
-    var next = pinchRef.current.startScale * getTouchDist(e.touches) / pinchRef.current.startDist;
-    if (next < 0.7) next = 0.7;
-    if (next > 3) next = 3;
-    setPinchScale(next);
-  }
-  function onTouchEnd(e) {
-    if (e.touches.length < 2) pinchRef.current.active = false;
-  }
+  const [previewing, setPreviewing] = useState(null); // 两步确认：预览中的牌index
   const FAN = 68;
   const R   = 200;
   const CARD_W = 26;
@@ -309,19 +285,11 @@ const FanDeck = ({ total, selectedIndices, onSelect, spread, deckCards }) => {
   const previewCard = previewing !== null && deckCards ? deckCards[previewing] : null;
 
   return (
-    <div
-      style={{ position:"relative", width:"100%", height:containerH, overflowX:"hidden", overflowY:"visible",
-        WebkitTransform:"scale("+pinchScale+")", transform:"scale("+pinchScale+")", transformOrigin:"50% 100%", WebkitTransformOrigin:"50% 100%",
-        transition: pinchRef.current.active ? "none" : "transform 0.3s ease",
-      }}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
-    >
+    <div style={{ position:"relative", width:"100%", height:containerH, overflowX:"hidden", overflowY:"visible" }}>
       {/* 预览弹窗 — 底部浮层，只显示序号和引导语，不透露牌面 */}
       {previewing !== null && !selectedIndices.includes(previewing) && (
         <div style={{
-          position:"fixed", bottom:0, left:0, right:0, zIndex:9999,
+          position:"fixed", bottom:0, left:0, right:0, zIndex:100,
           background:"linear-gradient(to top, rgba(13,6,32,0.98) 0%, rgba(13,6,32,0.92) 100%)",
           borderTop:"1px solid rgba(212,175,55,0.3)",
           padding:"20px 24px 36px",
@@ -465,13 +433,14 @@ export default function TarotApp() {
 
     // 2. 环境变量读取（适配 Vercel）
     // 记得在 Vercel 后台设置的 Key 必须是：VITE_GEMINI_KEY
-    const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_KEY;
+    const GEMINI_API_KEY = import.meta.env?.VITE_GEMINI_KEY || "";
     
     if (!GEMINI_API_KEY) {
-      setReading("【系统错误】未检测到有效的 API Key。请确保在 Vercel 环境变量中配置了 VITE_GEMINI_KEY 并重新部署。");
-      return;
-    }
-
+    setReading("【系统错误】未检测到有效秘钥，请检查 Vercel 环境变量配置。");
+    setPhase("reading");
+    return;
+  }
+  
     // 2026年正式版配置
     const MODEL_ID = "gemini-2.5-flash"; 
     const API_URL = `https://generativelanguage.googleapis.com/v1/models/${MODEL_ID}:generateContent?key=${GEMINI_API_KEY}`;
