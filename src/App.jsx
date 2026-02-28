@@ -533,7 +533,7 @@ ${cardDesc}
         .mystic-input:focus { border-color:rgba(212,175,55,0.7); box-shadow:0 0 18px rgba(212,175,55,0.2),inset 0 0 8px rgba(212,175,55,0.05); }
         .mystic-input::placeholder { color:rgba(212,175,55,0.3); }
         * { box-sizing:border-box; }
-        html { margin:0; padding:0; overflow:hidden; width:100%; height:100%; } body { margin:0; padding:0; overflow-x:hidden; overflow-y:auto; width:100%; position:relative; }
+        html,body { margin:0; padding:0; overflow-x:hidden; }
         textarea, input { -webkit-appearance:none; }
         .reading-text { font-family:'Crimson Pro',serif; font-size:1.05rem; line-height:2.1; color:rgba(220,200,255,0.88); white-space:pre-wrap; }
         ::-webkit-scrollbar{display:none} * { -ms-overflow-style:none; scrollbar-width:none; }
