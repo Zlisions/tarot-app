@@ -289,7 +289,7 @@ const FanDeck = ({ total, selectedIndices, onSelect, spread, deckCards }) => {
       {/* 预览弹窗 — 底部浮层，只显示序号和引导语，不透露牌面 */}
       {previewing !== null && !selectedIndices.includes(previewing) && (
         <div style={{
-          position:"fixed", bottom:0, left:0, right:0, zIndex:100,
+          position:"fixed", bottom:0, left:0, right:0, zIndex:9999,
           background:"linear-gradient(to top, rgba(13,6,32,0.98) 0%, rgba(13,6,32,0.92) 100%)",
           borderTop:"1px solid rgba(212,175,55,0.3)",
           padding:"20px 24px 36px",
@@ -519,7 +519,7 @@ ${cardDesc}
   };
 
   return (
-    <div style={{ minHeight:"100dvh", position:"relative", overflow:"hidden", background:"radial-gradient(ellipse at 50% 0%,#1a0a3e 0%,#0d0620 40%,#050210 100%)" }}>
+    <div style={{ minHeight:"100dvh", position:"relative", overflow:"hidden", overflowX:"hidden", maxWidth:"100vw", background:"radial-gradient(ellipse at 50% 0%,#1a0a3e 0%,#0d0620 40%,#050210 100%)" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap');
         @keyframes twinkle { 0%,100%{opacity:0.2;transform:scale(1)} 50%{opacity:1;transform:scale(1.3)} }
