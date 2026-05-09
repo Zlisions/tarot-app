@@ -217,10 +217,10 @@ const ShufflePile = ({ step }) => {
 const FanDeck = ({ total, selectedIndices, onSelect, spread, deckCards }) => {
   const [hovered, setHovered] = useState(null);
   const [previewing, setPreviewing] = useState(null); // 两步确认：预览中的牌index
-  const FAN = 68;
-  const R   = 200;
-  const CARD_W = 26;
-  const CARD_H = 42;
+  const FAN = 78;
+  const R   = 220;
+  const CARD_W = 36;
+  const CARD_H = 58;
 
   const getTransform = (i) => {
     const t   = total <= 1 ? 0.5 : i / (total - 1);
@@ -228,7 +228,7 @@ const FanDeck = ({ total, selectedIndices, onSelect, spread, deckCards }) => {
     const picked  = selectedIndices.includes(i);
     const isHov   = hovered === i && !picked;
     const isPrev  = previewing === i && !picked;
-    const lift = picked ? 70 : (isHov || isPrev) ? 38 : 0;
+    const lift = picked ? 88 : (isHov || isPrev) ? 48 : 0;
     return { deg, lift };
   };
 
@@ -268,7 +268,7 @@ const FanDeck = ({ total, selectedIndices, onSelect, spread, deckCards }) => {
     };
   };
 
-  const containerH = 190;
+  const containerH = 280;
 
   const handleCardClick = (i) => {
     if (selectedIndices.includes(i) || selectedIndices.length >= 3) return;
@@ -285,7 +285,7 @@ const FanDeck = ({ total, selectedIndices, onSelect, spread, deckCards }) => {
   const previewCard = previewing !== null && deckCards ? deckCards[previewing] : null;
 
   return (
-    <div style={{ position:"relative", width:"100%", height:containerH, overflowX:"hidden", overflowY:"visible" }}>
+    <div style={{ position:"relative", width:"min(100vw, 760px)", height:containerH, margin:"0 auto", padding:"0 18px", overflow:"visible" }}>
       {/* 预览弹窗 — 底部浮层，只显示序号和引导语，不透露牌面 */}
       {previewing !== null && !selectedIndices.includes(previewing) && (
         <div style={{
@@ -380,19 +380,20 @@ export default function TarotApp() {
 
   // 选牌阶段锁住 body 滚动，其他阶段恢复
   useEffect(() => {
+    const html = document.documentElement;
     if (phase === "picking") {
+      html.style.overflow = "hidden";
       document.body.style.overflow = "hidden";
-      document.body.style.position = "fixed";
-      document.body.style.width = "100%";
+      document.body.style.touchAction = "none";
     } else {
+      html.style.overflow = "";
       document.body.style.overflow = "";
-      document.body.style.position = "";
-      document.body.style.width = "";
+      document.body.style.touchAction = "";
     }
     return () => {
+      html.style.overflow = "";
       document.body.style.overflow = "";
-      document.body.style.position = "";
-      document.body.style.width = "";
+      document.body.style.touchAction = "";
     };
   }, [phase]);
 
@@ -519,7 +520,7 @@ ${cardDesc}
   };
 
   return (
-    <div style={{ minHeight:"100dvh", position:"relative", overflow:"hidden", overflowX:"hidden", maxWidth:"100vw", background:"radial-gradient(ellipse at 50% 0%,#1a0a3e 0%,#0d0620 40%,#050210 100%)" }}>
+    <div style={{ minHeight:"100dvh", width:"100%", position:"relative", overflow:"hidden", overflowX:"hidden", background:"radial-gradient(ellipse at 50% 0%,#1a0a3e 0%,#0d0620 40%,#050210 100%)" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap');
         @keyframes twinkle { 0%,100%{opacity:0.2;transform:scale(1)} 50%{opacity:1;transform:scale(1.3)} }
@@ -635,7 +636,7 @@ ${cardDesc}
               </p>
             </div>
             {/* 牌组：fixed 固定在屏幕60%位置 */}
-            <div style={{ position:"fixed", top:"50%", left:0, right:0, zIndex:30, pointerEvents:"none", transform:"translateY(-10%)" }}>
+            <div style={{ position:"fixed", top:"56%", left:0, right:0, zIndex:30, pointerEvents:"none", transform:"translateY(-50%)" }}>
               <div style={{ pointerEvents:"auto" }}>
                 <FanDeck
                   total={deckCards.length}
