@@ -214,123 +214,225 @@ const ShufflePile = ({ step }) => {
 // ═══════════════════════════════════════════════════════════
 //  FAN DECK  —  upward arc, transformOrigin bottom-center
 // ═══════════════════════════════════════════════════════════
-const FanDeck = ({ total, selectedIndices, onSelect, spread, deckCards }) => {
+const FanDeck = ({ total, selectedIndices, onSelect, spread }) => {
   const [hovered, setHovered] = useState(null);
-  const [previewing, setPreviewing] = useState(null); // 两步确认：预览中的牌index
-  const FAN = 78;
-  const R   = 220;
-  const CARD_W = 36;
-  const CARD_H = 58;
+  const [previewing, setPreviewing] = useState(null); // 单击预选中，再次点击确认
+  const [allowHover, setAllowHover] = useState(false);
+  const [offset, setOffset] = useState(0);            // 牌组在圆弧上的偏移（可小数）
+  const dragRef = useRef({ active:false, startX:0, startOffset:0, moved:false });
 
-  const getTransform = (i) => {
-    const t   = total <= 1 ? 0.5 : i / (total - 1);
-    const deg = -FAN / 2 + t * FAN;
-    const picked  = selectedIndices.includes(i);
-    const isHov   = hovered === i && !picked;
-    const isPrev  = previewing === i && !picked;
-    const lift = picked ? 88 : (isHov || isPrev) ? 48 : 0;
-    return { deg, lift };
+  const CARD_W = 64;
+  const CARD_H = 106;
+  const CONTAINER_H = 520;
+
+  // 圆环几何参数（对应你图中红色环带）
+  const RADIUS = 390;
+  const ARC_CENTER_Y = 620;       // 圆心更靠下，牌阵落在画面下半区
+  const ANGLE_PER_CARD = 3.3;     // 每张牌之间角度间隔
+  const VISIBLE_DEG = 62;         // 主可见角度
+  const FADE_END_DEG = 78;        // 渐隐结束角度
+
+  // 交互灵敏度
+  const DRAG_PX_PER_CARD = 20;
+  const WHEEL_TO_CARD = 0.018;
+
+  const wrapOffset = (value) => {
+    if (total <= 0) return 0;
+    return ((value % total) + total) % total;
+  };
+
+  const circularDelta = (index, currentOffset) => {
+    let d = index - currentOffset;
+    d = ((d + total / 2) % total + total) % total - total / 2;
+    return d;
+  };
+
+  // 进入抽牌时，把中心对齐到牌堆中段，便于左右探索
+  useEffect(() => {
+    if (!spread || total <= 0) return;
+    setOffset(total / 2);
+    setPreviewing(null);
+  }, [spread, total]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const media = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const syncHover = () => setAllowHover(media.matches);
+    syncHover();
+
+    if (media.addEventListener) {
+      media.addEventListener("change", syncHover);
+      return () => media.removeEventListener("change", syncHover);
+    }
+    if (media.addListener) {
+      media.addListener(syncHover);
+      return () => media.removeListener(syncHover);
+    }
+  }, []);
+
+  const updateOffset = (delta) => {
+    setOffset(prev => wrapOffset(prev + delta));
+  };
+
+  const handleWheel = (e) => {
+    if (!spread) return;
+    const mainDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (Math.abs(mainDelta) < 0.5) return;
+    e.preventDefault();
+    updateOffset(mainDelta * WHEEL_TO_CARD);
+  };
+
+  const handlePointerDown = (e) => {
+    if (!spread) return;
+    const targetEl = e.target instanceof Element ? e.target : null;
+    const touchingCard = targetEl?.closest('[data-card-hit="true"]');
+    if (!touchingCard) {
+      setHovered(null);
+      setPreviewing(null);
+    }
+    dragRef.current.active = true;
+    dragRef.current.startX = e.clientX;
+    dragRef.current.startOffset = offset;
+    dragRef.current.moved = false;
+    if (e.currentTarget.setPointerCapture) {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
+  };
+
+  const handlePointerMove = (e) => {
+    if (!dragRef.current.active) return;
+    const dx = e.clientX - dragRef.current.startX;
+    if (Math.abs(dx) > 6 && !dragRef.current.moved) {
+      dragRef.current.moved = true;
+      setPreviewing(null);
+    }
+    setOffset(wrapOffset(dragRef.current.startOffset - dx / DRAG_PX_PER_CARD));
+  };
+
+  const endDrag = () => {
+    if (!dragRef.current.active) return;
+    dragRef.current.active = false;
+    if (dragRef.current.moved) {
+      setTimeout(() => { dragRef.current.moved = false; }, 0);
+    }
+  };
+
+  const handleCardClick = (i) => {
+    if (dragRef.current.moved) return;
+    if (selectedIndices.includes(i) || selectedIndices.length >= 3) return;
+    if (previewing === i) {
+      onSelect(i);
+      setPreviewing(null);
+      return;
+    }
+    setPreviewing(i);
   };
 
   const getStyle = (i) => {
-    const picked  = selectedIndices.includes(i);
-    const isHov   = hovered === i && !picked;
-    const isPrev  = previewing === i && !picked;
-    const maxed   = selectedIndices.length >= 3 && !picked;
-    const { deg, lift } = getTransform(i);
+    const picked = selectedIndices.includes(i);
+    const isPrev = previewing === i && !picked;
+    const isHov = allowHover && hovered === i && !picked && !isPrev;
+    const maxed = selectedIndices.length >= 3 && !picked;
 
-    let scale = 1, zIndex = i + 1, glow = "none", brightness = 1;
-    if (picked)              { scale = 1.12; zIndex = total + 30; glow = "0 0 28px rgba(212,175,55,1), 0 0 55px rgba(212,175,55,0.5)"; }
-    else if (isPrev)         { scale = 1.15; zIndex = total + 20; glow = "0 0 32px rgba(147,51,234,1), 0 0 55px rgba(212,175,55,0.6)"; }
-    else if (isHov)          { scale = 1.09; zIndex = total + 15; glow = "0 0 24px rgba(147,51,234,0.9), 0 0 44px rgba(212,175,55,0.35)"; }
-    else if (maxed)          { brightness = 0.38; }
+    const d = circularDelta(i, offset);
+    const deg = d * ANGLE_PER_CARD;
+    const absDeg = Math.abs(deg);
+    const rad = (deg * Math.PI) / 180;
 
-    const pivotDist = R - lift;
+    const extraLift = picked ? 26 : isPrev ? 22 : isHov ? 16 : 0;
+    const anchorX = Math.sin(rad) * (RADIUS + extraLift);
+    const anchorY = ARC_CENTER_Y - Math.cos(rad) * (RADIUS + extraLift);
+
+    const isForcedVisible = picked || isPrev;
+    const isInRange = absDeg <= FADE_END_DEG;
+    const show = isForcedVisible || isInRange;
+
+    let fadeOpacity = 1;
+    if (absDeg > VISIBLE_DEG) {
+      fadeOpacity = Math.max(0, 1 - (absDeg - VISIBLE_DEG) / (FADE_END_DEG - VISIBLE_DEG));
+    }
+
+    let scale = 1;
+    let glow = "none";
+    let brightness = 1;
+    let zIndex = 1000 + Math.round((FADE_END_DEG - Math.min(absDeg, FADE_END_DEG)) * 10);
+
+    if (picked) {
+      scale = 1.14;
+      zIndex = 2600;
+      glow = "0 0 34px rgba(212,175,55,0.95), 0 0 58px rgba(212,175,55,0.42)";
+    } else if (isPrev) {
+      scale = 1.14;
+      zIndex = 2400;
+      glow = "0 0 32px rgba(147,51,234,0.9), 0 0 56px rgba(212,175,55,0.42)";
+    } else if (isHov) {
+      scale = 1.1;
+      zIndex = 2200;
+      glow = "0 0 26px rgba(147,51,234,0.85), 0 0 44px rgba(212,175,55,0.34)";
+    } else if (maxed) {
+      brightness = 0.38;
+    }
+
     return {
       position: "absolute",
-      left: "50%",
-      bottom: 0,
+      left: `calc(50% + ${anchorX}px)`,
+      top: anchorY - CARD_H,
       width: CARD_W,
       height: CARD_H,
       marginLeft: -CARD_W / 2,
       transform: `rotate(${deg}deg) scale(${scale})`,
-      transformOrigin: `50% calc(100% + ${pivotDist}px)`,
+      transformOrigin: "50% 100%",
       zIndex,
       cursor: picked || maxed ? "default" : "pointer",
       transition: spread
-        ? `transform 0.6s cubic-bezier(0.34,1.1,0.64,1) ${i * 10}ms, filter 0.22s, opacity 0.5s ${i * 10}ms`
-        : "transform 0.18s ease, filter 0.18s",
+        ? `transform 0.45s cubic-bezier(0.34,1.1,0.64,1), filter 0.2s, opacity 0.22s, left 0.2s linear, top 0.2s linear`
+        : "transform 0.22s ease, filter 0.2s, opacity 0.2s",
       filter: `brightness(${brightness})`,
       boxShadow: glow,
       borderRadius: 9,
-      opacity: spread ? 1 : 0,
+      opacity: spread ? (show ? fadeOpacity : 0) : 0,
+      pointerEvents: show ? "auto" : "none",
       userSelect: "none",
+      willChange: "transform, left, top, opacity",
     };
   };
 
-  const containerH = 280;
-
-  const handleCardClick = (i) => {
-    if (selectedIndices.includes(i) || selectedIndices.length >= 3) return;
-    if (previewing === i) {
-      // 第二次点击 = 确认选中
-      onSelect(i);
-      setPreviewing(null);
-    } else {
-      // 第一次点击 = 预览
-      setPreviewing(i);
-    }
-  };
-
-  const previewCard = previewing !== null && deckCards ? deckCards[previewing] : null;
-
   return (
-    <div style={{ position:"relative", width:"min(100vw, 760px)", height:containerH, margin:"0 auto", padding:"0 18px", overflow:"visible" }}>
-      {/* 预览弹窗 — 底部浮层，只显示序号和引导语，不透露牌面 */}
-      {previewing !== null && !selectedIndices.includes(previewing) && (
-        <div style={{
-          position:"fixed", bottom:0, left:0, right:0, zIndex:9999,
-          background:"linear-gradient(to top, rgba(13,6,32,0.98) 0%, rgba(13,6,32,0.92) 100%)",
-          borderTop:"1px solid rgba(212,175,55,0.3)",
-          padding:"20px 24px 36px",
-          textAlign:"center",
-          backdropFilter:"blur(12px)",
-          animation:"fadeInUp 0.2s ease-out",
-        }}>
-          <div style={{ color:"rgba(212,175,55,0.5)", fontSize:"0.7rem", fontFamily:"'Cinzel',serif", letterSpacing:"0.2em", marginBottom:8 }}>
-            第 {selectedIndices.length + 1} 张命运之牌
-          </div>
-          <div style={{ color:"#d4af37", fontFamily:"'Crimson Pro',serif", fontSize:"1.05rem", marginBottom:20, fontStyle:"italic" }}>
-            你感受到它的召唤了吗？
-          </div>
-          <div style={{ display:"flex", justifyContent:"center", gap:12 }}>
-            <button onClick={() => { onSelect(previewing); setPreviewing(null); }} style={{
-              padding:"12px 28px", borderRadius:9999,
-              background:"linear-gradient(135deg,rgba(212,175,55,0.25),rgba(147,51,234,0.25))",
-              border:"1px solid rgba(212,175,55,0.7)", color:"#d4af37",
-              fontFamily:"'Cinzel',serif", fontSize:"0.78rem", cursor:"pointer",
-              boxShadow:"0 0 18px rgba(212,175,55,0.25)",
-            }}>✦ 命运已定</button>
-            <button onClick={() => setPreviewing(null)} style={{
-              padding:"12px 24px", borderRadius:9999,
-              background:"transparent",
-              border:"1px solid rgba(212,175,55,0.2)", color:"rgba(212,175,55,0.45)",
-              fontFamily:"'Cinzel',serif", fontSize:"0.75rem", cursor:"pointer",
-            }}>再感受一下</button>
-          </div>
-        </div>
-      )}
+    <div
+      style={{ position:"relative", width:"100%", maxWidth:"980px", height:CONTAINER_H, margin:"0 auto", touchAction:"none" }}
+      onWheel={handleWheel}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      onPointerLeave={endDrag}
+    >
+      {/* 圆环轨道参考层 */}
+      <div style={{
+        position:"absolute", inset:0, pointerEvents:"none",
+        background: `
+          radial-gradient(
+            ellipse 140% 120% at 50% ${ARC_CENTER_Y}px,
+            rgba(212,175,55,0) ${RADIUS - 60}px,
+            rgba(212,175,55,0.24) ${RADIUS - 36}px,
+            rgba(212,175,55,0.16) ${RADIUS - 18}px,
+            rgba(212,175,55,0) ${RADIUS + 14}px
+          )
+        `,
+      }} />
 
       {Array.from({ length: total }, (_, i) => {
         const picked = selectedIndices.includes(i);
-        const { deg } = getTransform(i);
+        const d = circularDelta(i, offset);
+        const deg = d * ANGLE_PER_CARD;
         return (
           <div
             key={i}
+            data-card-hit="true"
             style={getStyle(i)}
             onClick={() => handleCardClick(i)}
-            onMouseEnter={() => { if (!picked) setHovered(i); }}
-            onMouseLeave={() => setHovered(null)}
+            onMouseEnter={() => { if (allowHover && !picked) setHovered(i); }}
+            onMouseLeave={() => { if (allowHover) setHovered(null); }}
           >
             <CardFaceDown w={CARD_W} h={CARD_H} glowing={picked || previewing === i} />
             {picked && (
@@ -384,7 +486,7 @@ export default function TarotApp() {
     if (phase === "picking") {
       html.style.overflow = "hidden";
       document.body.style.overflow = "hidden";
-      document.body.style.touchAction = "none";
+      document.body.style.touchAction = "pan-x";
     } else {
       html.style.overflow = "";
       document.body.style.overflow = "";
@@ -526,6 +628,7 @@ ${cardDesc}
         @keyframes twinkle { 0%,100%{opacity:0.2;transform:scale(1)} 50%{opacity:1;transform:scale(1.3)} }
         @keyframes shimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
         @keyframes fadeInUp { from{opacity:0;transform:translateY(26px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes fadeOnly { from{opacity:0} to{opacity:1} }
         @keyframes glow { 0%,100%{box-shadow:0 0 18px rgba(147,51,234,0.4)} 50%{box-shadow:0 0 45px rgba(147,51,234,0.8),0 0 75px rgba(212,175,55,0.3)} }
         @keyframes cardReveal { from{opacity:0;transform:rotateY(80deg) scale(0.85)} to{opacity:1;transform:rotateY(0deg) scale(1)} }
         @keyframes selectedPulse { 0%,100%{box-shadow:inset 0 0 10px rgba(212,175,55,0.18);border-color:rgba(212,175,55,0.9)} 50%{box-shadow:inset 0 0 22px rgba(212,175,55,0.4);border-color:rgba(255,220,80,1)} }
@@ -621,7 +724,7 @@ ${cardDesc}
 
         {/* ── PICKING ───────────────────────────────────── */}
         {phase === "picking" && (
-          <div style={{ animation:"fadeInUp 0.5s ease-out forwards" }}>
+          <div style={{ animation:"fadeOnly 0.35s ease-out forwards", opacity:0 }}>
             {/* 文字提示 */}
             <div style={{ textAlign:"center", marginBottom:8 }}>
               <p style={{ color:"rgba(212,175,55,0.75)", fontFamily:"'Cinzel',serif", fontSize:"0.8rem", letterSpacing:"0.18em", margin:"0 0 5px 0" }}>
@@ -629,21 +732,23 @@ ${cardDesc}
                 <span style={{ color:"#d4af37", fontWeight:700 }}>{3 - selectedIdx.length}</span>{" "}张属于你的命运之牌
               </p>
               <p style={{ color:"rgba(212,175,55,0.32)", fontSize:"0.66rem", margin:0, fontFamily:"'Crimson Pro',serif", letterSpacing:"0.1em" }}>
-                {selectedIdx.length === 0 && "悬停感受牌的能量 · 点击选择"}
-                {selectedIdx.length === 1 && "✦ 第一张已定，继续选择"}
-                {selectedIdx.length === 2 && "✦ 第二张已定，最后一张，慎重..."}
+                {selectedIdx.length === 0 && "轻点牌面浮起 · 再点一次确认"}
+                {selectedIdx.length === 1 && "✦ 第一张已定，继续双击确认下一张"}
+                {selectedIdx.length === 2 && "✦ 第二张已定，最后一张，慎重确认..."}
                 {selectedIdx.length === 3 && "✦ 命运已定，正在揭示..."}
               </p>
+              <p style={{ color:"rgba(212,175,55,0.45)", fontSize:"0.64rem", margin:"6px 0 0 0", fontFamily:"'Crimson Pro',serif", letterSpacing:"0.1em" }}>
+                牌阵已放大 · 沿圆弧拖动可浏览全部 78 张牌
+              </p>
             </div>
-            {/* 牌组：fixed 固定在屏幕60%位置 */}
-            <div style={{ position:"fixed", top:"56%", left:0, right:0, zIndex:30, pointerEvents:"none", transform:"translateY(-50%)" }}>
+            {/* 牌组：fixed 固定在屏幕中下方 */}
+            <div style={{ position:"fixed", top:"78%", left:0, right:0, zIndex:30, pointerEvents:"none", transform:"translateY(-50%)" }}>
               <div style={{ pointerEvents:"auto" }}>
                 <FanDeck
                   total={deckCards.length}
                   selectedIndices={selectedIdx}
                   onSelect={handlePickCard}
                   spread={spread}
-                  deckCards={deckCards}
                 />
               </div>
             </div>
